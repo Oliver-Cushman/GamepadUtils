@@ -11,8 +11,7 @@ int main()
         gamepad.refresh();
         std::cout << "\r";
         for (int i = 0; i < buttonNames.size(); i++) {
-            std::cout << buttonNames[i] << ": " << (int) gamepad.getButton(i) << " | ";
+            std::cout << buttonNames[i] + ": " << gamepad.getButton(i) << " | ";
         }
-        gamepad.closeStream();
     }
 }

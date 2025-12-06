@@ -196,8 +196,9 @@ void Gamepad::startReconnectionThread()
 {
     std::thread([this]()
                 {
-            while (this->reconnect() < 0 && this->reconnecting.load())
+            while (this->reconnect() < 0 && this->reconnecting.load()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
             this->reconnecting.store(false); })
         .detach();
 }
