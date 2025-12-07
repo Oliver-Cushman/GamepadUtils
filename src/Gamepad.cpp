@@ -218,8 +218,8 @@ ssize_t Gamepad::safeRead(void *buf, size_t size)
  */
 int Gamepad::safeOpen(const std::string &path)
 {
-    int newFd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     std::lock_guard<std::mutex> lock(this->fdMutex);
+    int newFd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     int oldFd = this->fd;
     this->fd = newFd;
     if (oldFd >= 0)
