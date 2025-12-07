@@ -113,16 +113,6 @@ bool Gamepad::getErr()
 }
 
 /**
- * @brief Gets value for device file path. Locks mutex.
- * @returns A string for the new device file path
- */
-std::string Gamepad::getPath()
-{
-    std::lock_guard<std::mutex> lock(pathMutex);
-    return this->path;
-}
-
-/**
  *  @brief Opens the stream of a given path to a 'jsX' file.
  *  @param path The path to the file as a string
  *  @return The file descriptor of the stream
@@ -133,7 +123,7 @@ int Gamepad::openStream(const std::string &path)
 {
     // Switching / opening new stream, stop background thread
     this->stopReconnectionThread();
-    this->setPath(path);
+    this->path = path;
     return this->safeOpen(path);
 }
 
@@ -146,16 +136,6 @@ int Gamepad::closeStream()
     // Stopping device file stream, stop background thread
     this->stopReconnectionThread();
     return this->safeClose();
-}
-
-/**
- * @brief Set a new value for device file path. Locks mutex.
- * @param newPath The new string for path
- */
-void Gamepad::setPath(const std::string &newPath)
-{
-    std::lock_guard<std::mutex> lock(pathMutex);
-    this->path = newPath;
 }
 
 /**
@@ -191,24 +171,16 @@ void Gamepad::updateStatus(int err)
 }
 
 /**
- *  @brief Attempts to reopen file stream.
- *  @returns The file descriptor of the stream
- */
-int Gamepad::reconnect()
-{
-    return this->safeOpen(this->getPath());
-}
-
-/**
  *  @brief Asynchronously attempt reconnection every ~250ms.
  */
 void Gamepad::startReconnectionThread()
 {
     if (this->reconnecting.exchange(true))
         return;
-    this->reconnectionThread = std::thread([this]()
+    std::string path = this->path;
+    this->reconnectionThread = std::thread([this, path]()
                                            {
-        while (this->reconnect() < 0 && this->reconnecting.load()) 
+        while (this->safeOpen(path) < 0 && this->reconnecting.load()) 
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }

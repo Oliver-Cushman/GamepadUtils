@@ -64,12 +64,6 @@ public:
     bool getErr();
 
     /**
-     * @brief Gets value for device file path. Locks mutex.
-     * @returns A string for the new device file path
-     */
-    std::string getPath();
-
-    /**
      *  @brief Opens the stream of a given path to a 'jsX' file.
      *  @param path The path to the file as a string
      *  @return The file descriptor of the stream
@@ -86,7 +80,6 @@ public:
 
 private:
     std::string path;
-    std::mutex pathMutex;
     int fd;
     std::mutex fdMutex;
     std::atomic<bool> reconnecting;
@@ -94,12 +87,6 @@ private:
     GamepadStatus status;
     std::array<short, 6> axes{};
     std::array<short, 15> buttons{};
-
-    /**
-     * @brief Set a new value for device file path. Locks mutex.
-     * @param newPath The new string for path
-     */
-    void setPath(const std::string &newPath);
 
     /**
      *  @brief Updates the status based on the current 'errno' status,
