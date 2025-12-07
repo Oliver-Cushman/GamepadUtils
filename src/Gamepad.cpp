@@ -13,6 +13,7 @@
  */
 Gamepad::Gamepad(std::string path)
 {
+    this->fd = -1;
     this->reconnecting.store(false);
     this->openStream(path);
     this->refresh();
@@ -40,21 +41,30 @@ Gamepad::~Gamepad()
  */
 void Gamepad::refresh()
 {
+    if (!this->reconnecting.load())
+        // Connection successful, stop background thread
+        stopReconnectionThread();
+    else
+        // Still disconnected, no point in refreshing state
+        return;
+
     ssize_t bytesRead = -1;
     JSEvent event;
     // Read sizeof(JSEvent) bytes into event
     // read() updates errno to check status
-    while ((bytesRead = read(this->fd.load(), &event, sizeof(JSEvent))) > 0)
+    while ((bytesRead = this->safeRead(&event, sizeof(JSEvent))) > 0)
     {
         if (event.type == 1)
             this->buttons[event.number] = event.value;
         else if (event.type == 2)
             this->axes[event.number] = event.value;
     }
-    this->updateStatus();
-    if (this->getErr() && !this->reconnecting.load())
+    int err = errno;
+    // Check for read errors
+    this->updateStatus(err);
+    if (this->getErr())
     {
-        this->reconnecting.store(true);
+        // Problem with controller, attempt reconnection
         this->startReconnectionThread();
     }
 }
@@ -122,10 +132,10 @@ std::string Gamepad::getPath()
  */
 int Gamepad::openStream(std::string path)
 {
-    this->reconnecting.store(false);
+    // Switching / opening new stream, stop background thread
+    this->stopReconnectionThread();
     this->setPath(path);
-    this->fd.store(open(path.c_str(), O_RDONLY | O_NONBLOCK));
-    return this->fd.load();
+    return this->safeOpen(path);
 }
 
 /**
@@ -134,8 +144,9 @@ int Gamepad::openStream(std::string path)
  */
 int Gamepad::closeStream()
 {
-    this->reconnecting.store(false);
-    return close(this->fd.load());
+    // Stopping device file stream, stop background thread
+    this->stopReconnectionThread();
+    return this->safeClose();
 }
 
 /**
@@ -151,10 +162,11 @@ void Gamepad::setPath(std::string newPath)
 /**
  *  @brief Updates the status based on the current 'errno' status,
  *  @brief see: https://man7.org/linux/man-pages/man2/read.2.html
+ *  @param err The error value from errno
  */
-void Gamepad::updateStatus()
+void Gamepad::updateStatus(int err)
 {
-    switch (errno)
+    switch (err)
     {
     case EBADF:
         // Invalid file descriptor
@@ -185,8 +197,7 @@ void Gamepad::updateStatus()
  */
 int Gamepad::reconnect()
 {
-    this->fd.store(open(this->getPath().c_str(), O_RDONLY | O_NONBLOCK));
-    return this->fd.load();
+    return this->safeOpen(this->getPath());
 }
 
 /**
@@ -194,11 +205,67 @@ int Gamepad::reconnect()
  */
 void Gamepad::startReconnectionThread()
 {
-    std::thread([this]()
-                {
-            while (this->reconnect() < 0 && this->reconnecting.load()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(250));
-            }
-            this->reconnecting.store(false); })
-        .detach();
+    if (this->reconnecting.exchange(true))
+        return;
+    this->reconnectionThread = std::thread([this]()
+                                           {
+        while (this->reconnect() < 0 && this->reconnecting.load()) 
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+        this->reconnecting.store(false); });
+}
+
+/**
+ * @brief Stop reconnecton thread.
+ */
+void Gamepad::stopReconnectionThread()
+{
+    this->reconnecting.store(false);
+    if (this->reconnectionThread.joinable())
+    {
+        this->reconnectionThread.join();
+    }
+}
+
+/**
+ *  @brief Provides a safe mutex lock around the read syscall.
+ *  @param buf A reference to a buffer to read into
+ *  @param size The size of the buffer / how many bytes to read
+ *  @return The amount of bytes read as a ssize_t
+ */
+ssize_t Gamepad::safeRead(void *buf, size_t size)
+{
+    std::lock_guard<std::mutex> lock(this->fdMutex);
+    return read(this->fd, buf, size);
+}
+
+/**
+ *  @brief Provides a safe mutex lock around the open syscall while closing already open file descriptors.
+ *  @param path A string of the file path to the device
+ *  @return The new file descriptor
+ */
+int Gamepad::safeOpen(std::string path)
+{
+    int newFd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
+    std::lock_guard<std::mutex> lock(this->fdMutex);
+    int oldFd = this->fd;
+    this->fd = newFd;
+    if (oldFd >= 0)
+        close(oldFd);
+    return newFd;
+}
+
+/**
+ *  @brief Provides a safe mutex lock around the close syscall
+ *  @return An int representing the outcome of close()
+ */
+int Gamepad::safeClose()
+{
+    std::lock_guard<std::mutex> lock(this->fdMutex);
+    int oldFd = this->fd;
+    this->fd = -1;
+    if (oldFd >= 0)
+        return close(oldFd);
+    return 0;
 }

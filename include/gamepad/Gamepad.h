@@ -87,7 +87,8 @@ public:
 private:
     std::string path;
     std::mutex pathMutex;
-    std::atomic<int> fd;   
+    int fd;
+    std::mutex fdMutex;
     std::atomic<bool> reconnecting;
     std::thread reconnectionThread;
     GamepadStatus status;
@@ -104,7 +105,7 @@ private:
      *  @brief Updates the status based on the current 'errno' status,
      *  @brief see: https://man7.org/linux/man-pages/man2/read.2.html
      */
-    void updateStatus();
+    void updateStatus(int err);
 
     /**
      *  @brief Attempts to reopen file stream.
@@ -116,6 +117,33 @@ private:
      *  @brief Asynchronously attempt reconnection every ~250ms.
      */
     void startReconnectionThread();
+
+    /**
+     *  @brief Stop reconnection thread.
+     */
+    void stopReconnectionThread();
+
+    /**
+     *  @brief Provides a safe mutex lock around the read syscall.
+     *  @param buf A reference to a buffer to read into
+     *  @param size The size of the buffer / how many bytes to read
+     *  @return The amount of bytes read as a ssize_t
+     */
+    ssize_t safeRead(void *buf, size_t size);
+
+    /**
+     *  @brief Provides a safe mutex lock around the open syscall while closing already open file descriptors.
+     *  @param path A string of the file path to the device
+     *  @return The new file descriptor
+     */
+    int safeOpen(std::string path);
+
+    /**
+     *  @brief Provides a safe mutex lock around the close syscall
+     *  @return An int representing the outcome of close()
+     */
+    int safeClose();
+    
 };
 
 #endif // GAMEPAD_H
