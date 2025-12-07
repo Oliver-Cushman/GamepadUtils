@@ -16,7 +16,7 @@ public:
      *  @param path The path to the 'jsX' input file stream as a string
      *  @return The created Gamepad object
      */
-    Gamepad(std::string path);
+    Gamepad(const std::string &path);
 
     /**
      *  @brief Initializes a Gamepad object.
@@ -76,7 +76,7 @@ public:
      *  @details If the operation was successful, return positive integer
      *  @details Otherwise, set device error state and output error to console.
      */
-    int openStream(std::string path);
+    int openStream(const std::string &path);
 
     /**
      *  @brief Closes the file stream. Sets device to error state.
@@ -99,7 +99,7 @@ private:
      * @brief Set a new value for device file path. Locks mutex.
      * @param newPath The new string for path
      */
-    void setPath(std::string newPath);
+    void setPath(const std::string &newPath);
 
     /**
      *  @brief Updates the status based on the current 'errno' status,
@@ -136,14 +136,13 @@ private:
      *  @param path A string of the file path to the device
      *  @return The new file descriptor
      */
-    int safeOpen(std::string path);
+    int safeOpen(const std::string &path);
 
     /**
      *  @brief Provides a safe mutex lock around the close syscall
      *  @return An int representing the outcome of close()
      */
     int safeClose();
-    
 };
 
 #endif // GAMEPAD_H

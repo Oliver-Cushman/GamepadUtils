@@ -3,7 +3,6 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-#include <thread>
 #include <chrono>
 
 /**
@@ -11,7 +10,7 @@
  *  @param path The path to the 'jsX' input file stream as a string
  *  @return The created Gamepad object
  */
-Gamepad::Gamepad(std::string path)
+Gamepad::Gamepad(const std::string &path)
 {
     this->fd = -1;
     this->reconnecting.store(false);
@@ -130,7 +129,7 @@ std::string Gamepad::getPath()
  *  @details If the operation was successful, return positive integer
  *  @details Otherwise, set device error state and output error to console.
  */
-int Gamepad::openStream(std::string path)
+int Gamepad::openStream(const std::string &path)
 {
     // Switching / opening new stream, stop background thread
     this->stopReconnectionThread();
@@ -153,7 +152,7 @@ int Gamepad::closeStream()
  * @brief Set a new value for device file path. Locks mutex.
  * @param newPath The new string for path
  */
-void Gamepad::setPath(std::string newPath)
+void Gamepad::setPath(const std::string &newPath)
 {
     std::lock_guard<std::mutex> lock(pathMutex);
     this->path = newPath;
@@ -245,7 +244,7 @@ ssize_t Gamepad::safeRead(void *buf, size_t size)
  *  @param path A string of the file path to the device
  *  @return The new file descriptor
  */
-int Gamepad::safeOpen(std::string path)
+int Gamepad::safeOpen(const std::string &path)
 {
     int newFd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
     std::lock_guard<std::mutex> lock(this->fdMutex);
